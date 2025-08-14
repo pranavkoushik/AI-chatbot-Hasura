@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat - Secure Messaging with GraphQL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                fontFamily: {
+                    'inter': ['Inter', 'sans-serif'],
+                },
+                colors: {
+                    'primary': '#3B82F6',
+                    'secondary': '#6366F1', 
+                    'success': '#10B981',
+                    'error': '#EF4444',
+                    'warning': '#F59E0B',
+                }
+            }
+        }
+    };
+    </script>
+</head>
+<body class="font-inter bg-slate-50 text-slate-900">
+
+    <!-- @STATE: isAuthenticated:boolean = false -->
+    <!-- @STATE: currentView:string = 'signin' -->
+    <!-- @STATE: selectedChatId:string = null -->
+    <!-- @STATE: messages:array = [] -->
+    <!-- @STATE: chats:array = [] -->
+    <!-- @STATE: isLoading:boolean = false -->
+
+    <!-- Authentication Screen -->
+    <!-- @COMPONENT: AuthScreen [view: 'signin' | 'signup'] -->
+    <div id="auth-screen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-secondary/5 to-slate-50 px-4">
+        <div class="max-w-md w-full space-y-8">
+            <!-- Logo and Header -->
+            <div class="text-center">
+                <div class="mx-auto h-16 w-16 bg-gradient-to-r from-primary to-secondary rounded-xl flex items-center justify-center mb-6">
+                    <i class="fas fa-robot text-white text-2xl"></i>
+                </div>
+                <h2 class="text-3xl font-bold text-slate-900" data-bind="authTitle">Sign in to AI Chat</h2>
+                <p class="mt-2 text-sm text-slate-600">Secure messaging powered by GraphQL and AI</p>
+            </div>
+
+            <!-- Sign In Form -->
+            <div id="signin-form" class="bg-white shadow-xl rounded-2xl p-8 border border-slate-100">
+                <form class="space-y-6" data-event="submit:handleSignIn">
+                    <div>
+                        <label for="email" class="block text-sm font-medium text-slate-700">Email address</label>
+                        <input id="email" name="email" type="email" required 
+                               class="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                               placeholder="Enter your email" data-mock="true">
+                    </div>
+                    <div>
+                        <label for="password" class="block text-sm font-medium text-slate-700">Password</label>
+                        <div class="mt-1 relative">
+                            <input id="password" name="password" type="password" required 
+                                   class="block w-full px-4 py-3 pr-12 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                                   placeholder="Enter your password" data-mock="true">
+                            <button type="button" class="absolute inset-y-0 right-0 pr-3 flex items-center">
+                                <i class="fas fa-eye-slash text-slate-400 hover:text-slate-600 transition-colors"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center">
+                            <input type="checkbox" class="h-4 w-4 text-primary focus:ring-primary border-slate-300 rounded">
+                            <span class="ml-2 text-sm text-slate-600">Remember me</span>
+                        </label>
+                        <a href="#" class="text-sm text-primary hover:text-primary/80 transition-colors">Forgot password?</a>
+                    </div>
+
+                    <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all transform hover:scale-[1.02] active:scale-[0.98]" 
+                            data-implementation="Should validate form and call Nhost signIn">
+                        <span data-bind="isLoading ? 'Signing in...' : 'Sign in'">Sign in</span>
+                        <i class="fas fa-spinner fa-spin ml-2 hidden" data-bind="isLoading"></i>
+                    </button>
+                </form>
+
+                <div class="mt-6">
+                    <div class="relative">
+                        <div class="absolute inset-0 flex items-center">
+                            <div class="w-full border-t border-slate-300"></div>
+                        </div>
+                        <div class="relative flex justify-center text-sm">
+                            <span class="px-2 bg-white text-slate-500">New to AI Chat?</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <button type="button" class="w-full text-center text-primary hover:text-primary/80 transition-colors font-medium"
+                                data-event="click:switchToSignUp">
+                            Create your account
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sign Up Form (Hidden by default) -->
+            <div id="signup-form" class="bg-white shadow-xl rounded-2xl p-8 border border-slate-100 hidden">
+                <form class="space-y-6" data-event="submit:handleSignUp">
+                    <div>
+                        <label for="signup-email" class="block text-sm font-medium text-slate-700">Email address</label>
+                        <input id="signup-email" name="email" type="email" required 
+                               class="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                               placeholder="Enter your email" data-mock="true">
+                    </div>
+                    <div>
+                        <label for="signup-password" class="block text-sm font-medium text-slate-700">Password</label>
+                        <input id="signup-password" name="password" type="password" required 
+                               class="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                               placeholder="Create a password" data-mock="true">
+                    </div>
+                    <div>
+                        <label for="confirm-password" class="block text-sm font-medium text-slate-700">Confirm Password</label>
+                        <input id="confirm-password" name="confirmPassword" type="password" required 
+                               class="mt-1 block w-full px-4 py-3 border border-slate-300 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors"
+                               placeholder="Confirm your password" data-mock="true">
+                    </div>
+
+                    <div class="flex items-start">
+                        <input type="checkbox" class="h-4 w-4 text-primary focus:ring-primary border-slate-300 rounded mt-1" required>
+                        <label class="ml-2 text-sm text-slate-600">
+                            I agree to the <a href="#" class="text-primary hover:text-primary/80">Terms of Service</a> and <a href="#" class="text-primary hover:text-primary/80">Privacy Policy</a>
+                        </label>
+                    </div>
+
+                    <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-primary to-secondary hover:from-primary/90 hover:to-secondary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all transform hover:scale-[1.02] active:scale-[0.98]" 
+                            data-implementation="Should validate form and call Nhost signUp">
+                        Create account
+                    </button>
+                </form>
+
+                <div class="mt-6">
+                    <div class="relative">
+                        <div class="absolute inset-0 flex items-center">
+                            <div class="w-full border-t border-slate-300"></div>
+                        </div>
+                        <div class="relative flex justify-center text-sm">
+                            <span class="px-2 bg-white text-slate-500">Already have an account?</span>
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <button type="button" class="w-full text-center text-primary hover:text-primary/80 transition-colors font-medium"
+                                data-event="click:switchToSignIn">
+                            Sign in instead
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: AuthScreen -->
+
+    <!-- Main Chat Application -->
+    <!-- @COMPONENT: ChatApp [user: User, chats: Chat[], selectedChat: Chat] -->
+    <div id="chat-app" class="hidden h-screen flex bg-slate-50">
+        
+        <!-- Sidebar - Chat List -->
+        <!-- @COMPONENT: ChatSidebar [chats: Chat[], selectedChatId: string, onChatSelect: function] -->
+        <div class="w-80 bg-white border-r border-slate-200 flex flex-col">
+            <!-- Sidebar Header -->
+            <div class="p-4 border-b border-slate-200">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="h-10 w-10 bg-gradient-to-r from-primary to-secondary rounded-full flex items-center justify-center">
+                            <i class="fas fa-robot text-white text-sm"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-lg font-semibold text-slate-900">AI Chat</h1>
+                            <p class="text-xs text-slate-500" data-bind="user.email">user@example.com</p>
+                        </div>
+                    </div>
+                    <div class="relative">
+                        <button class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+                                data-event="click:toggleUserMenu">
+                            <i class="fas fa-ellipsis-vertical"></i>
+                        </button>
+                        <!-- User Dropdown Menu -->
+                        <div class="absolute right-0 top-10 w-48 bg-white rounded-lg shadow-lg border border-slate-200 py-2 z-50 hidden"
+                             data-bind="userMenuOpen">
+                            <a href="#" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                                <i class="fas fa-user mr-3 text-slate-400"></i>Profile
+                            </a>
+                            <a href="#" class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                                <i class="fas fa-cog mr-3 text-slate-400"></i>Settings
+                            </a>
+                            <hr class="my-2">
+                            <button class="block w-full text-left px-4 py-2 text-sm text-error hover:bg-slate-50"
+                                    data-event="click:handleSignOut" data-implementation="Should call Nhost signOut">
+                                <i class="fas fa-sign-out-alt mr-3 text-error"></i>Sign out
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- New Chat Button -->
+            <div class="p-4">
+                <button class="w-full flex items-center justify-center space-x-2 bg-gradient-to-r from-primary to-secondary text-white py-3 px-4 rounded-lg hover:from-primary/90 hover:to-secondary/90 transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-sm"
+                        data-event="click:createNewChat" data-implementation="Should create new chat via GraphQL mutation">
+                    <i class="fas fa-plus"></i>
+                    <span>New Chat</span>
+                </button>
+            </div>
+
+            <!-- Chat List -->
+            <div class="flex-1 overflow-y-auto">
+                <!-- @MAP: chats.map(chat => ( -->
+                <div class="p-2">
+                    <button class="w-full text-left p-3 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200 group"
+                            data-bind="selectedChatId === chat.id ? 'bg-primary/10 border-primary/20' : ''"
+                            data-event="click:selectChat" data-implementation="Should update selectedChatId state">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1 min-w-0">
+                                <h3 class="text-sm font-medium text-slate-900 truncate" data-bind="chat.title" data-mock="true">
+                                    New Chat Session
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-1 truncate" data-bind="chat.lastMessage" data-mock="true">
+                                    What can you help me with today?
+                                </p>
+                            </div>
+                            <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button class="p-1 text-slate-400 hover:text-slate-600 rounded"
+                                        data-event="click:editChat">
+                                    <i class="fas fa-edit text-xs"></i>
+                                </button>
+                                <button class="p-1 text-slate-400 hover:text-error rounded"
+                                        data-event="click:deleteChat" data-implementation="Should delete chat via GraphQL mutation">
+                                    <i class="fas fa-trash text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between mt-2">
+                            <span class="text-xs text-slate-400" data-bind="formatDate(chat.created_at)" data-mock="true">
+                                2 hours ago
+                            </span>
+                            <div class="flex items-center space-x-1">
+                                <div class="h-2 w-2 bg-success rounded-full" data-bind="chat.isOnline"></div>
+                                <span class="text-xs text-slate-400" data-bind="chat.messageCount" data-mock="true">5</span>
+                            </div>
+                        </div>
+                    </button>
+                </div>
+                <!-- Additional chat items -->
+                <div class="p-2">
+                    <button class="w-full text-left p-3 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200 group">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1 min-w-0">
+                                <h3 class="text-sm font-medium text-slate-900 truncate" data-mock="true">
+                                    Technical Discussion
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-1 truncate" data-mock="true">
+                                    Can you explain GraphQL subscriptions?
+                                </p>
+                            </div>
+                            <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button class="p-1 text-slate-400 hover:text-slate-600 rounded">
+                                    <i class="fas fa-edit text-xs"></i>
+                                </button>
+                                <button class="p-1 text-slate-400 hover:text-error rounded">
+                                    <i class="fas fa-trash text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between mt-2">
+                            <span class="text-xs text-slate-400" data-mock="true">Yesterday</span>
+                            <div class="flex items-center space-x-1">
+                                <div class="h-2 w-2 bg-slate-300 rounded-full"></div>
+                                <span class="text-xs text-slate-400" data-mock="true">12</span>
+                            </div>
+                        </div>
+                    </button>
+                </div>
+                <div class="p-2">
+                    <button class="w-full text-left p-3 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200 group">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1 min-w-0">
+                                <h3 class="text-sm font-medium text-slate-900 truncate" data-mock="true">
+                                    Project Planning
+                                </h3>
+                                <p class="text-xs text-slate-500 mt-1 truncate" data-mock="true">
+                                    Help me plan a web application architecture
+                                </p>
+                            </div>
+                            <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button class="p-1 text-slate-400 hover:text-slate-600 rounded">
+                                    <i class="fas fa-edit text-xs"></i>
+                                </button>
+                                <button class="p-1 text-slate-400 hover:text-error rounded">
+                                    <i class="fas fa-trash text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="flex items-center justify-between mt-2">
+                            <span class="text-xs text-slate-400" data-mock="true">3 days ago</span>
+                            <div class="flex items-center space-x-1">
+                                <div class="h-2 w-2 bg-slate-300 rounded-full"></div>
+                                <span class="text-xs text-slate-400" data-mock="true">8</span>
+                            </div>
+                        </div>
+                    </button>
+                </div>
+                <!-- @END_MAP )) -->
+            </div>
+
+            <!-- Sidebar Footer -->
+            <div class="p-4 border-t border-slate-200">
+                <div class="flex items-center space-x-2 text-xs text-slate-500">
+                    <div class="h-2 w-2 bg-success rounded-full animate-pulse"></div>
+                    <span>Connected via GraphQL</span>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: ChatSidebar -->
+
+        <!-- Main Chat Area -->
+        <!-- @COMPONENT: ChatArea [selectedChat: Chat, messages: Message[], onSendMessage: function] -->
+        <div class="flex-1 flex flex-col">
+            
+            <!-- Chat Header -->
+            <div class="bg-white border-b border-slate-200 p-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="h-8 w-8 bg-gradient-to-r from-secondary to-primary rounded-full flex items-center justify-center">
+                            <i class="fas fa-robot text-white text-sm"></i>
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-semibold text-slate-900" data-bind="selectedChat.title" data-mock="true">
+                                New Chat Session
+                            </h2>
+                            <div class="flex items-center space-x-2 text-sm text-slate-500">
+                                <div class="h-2 w-2 bg-success rounded-full"></div>
+                                <span>AI Assistant Online</span>
+                                <span>•</span>
+                                <span data-bind="messageCount" data-mock="true">5 messages</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <button class="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Messages Area -->
+            <div class="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50" data-implementation="Should use GraphQL subscription for real-time updates">
+                
+                <!-- Welcome Message -->
+                <div class="flex justify-center">
+                    <div class="bg-white rounded-lg p-4 shadow-sm border border-slate-200 max-w-md text-center">
+                        <div class="h-12 w-12 bg-gradient-to-r from-primary to-secondary rounded-full flex items-center justify-center mx-auto mb-3">
+                            <i class="fas fa-robot text-white"></i>
+                        </div>
+                        <h3 class="font-semibold text-slate-900 mb-2">Welcome to AI Chat!</h3>
+                        <p class="text-sm text-slate-600">I'm your AI assistant powered by OpenRouter. How can I help you today?</p>
+                    </div>
+                </div>
+
+                <!-- @MAP: messages.map(message => ( -->
+                <!-- User Message -->
+                <div class="flex justify-end" data-bind="message.role === 'user'">
+                    <div class="flex items-end space-x-2 max-w-lg">
+                        <div class="bg-gradient-to-r from-primary to-secondary text-white rounded-2xl rounded-br-sm px-4 py-3 shadow-sm">
+                            <p class="text-sm" data-bind="message.content" data-mock="true">
+                                What can you help me with today? I'm working on a web application and need some guidance.
+                            </p>
+                            <div class="flex items-center justify-end mt-2 space-x-2">
+                                <span class="text-xs opacity-75" data-bind="formatTime(message.created_at)" data-mock="true">2:30 PM</span>
+                                <i class="fas fa-check-double text-xs opacity-75"></i>
+                            </div>
+                        </div>
+                        <div class="h-8 w-8 bg-slate-300 rounded-full flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-user text-white text-sm"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Assistant Message -->
+                <div class="flex justify-start" data-bind="message.role === 'assistant'">
+                    <div class="flex items-end space-x-2 max-w-lg">
+                        <div class="h-8 w-8 bg-gradient-to-r from-secondary to-primary rounded-full flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-robot text-white text-sm"></i>
+                        </div>
+                        <div class="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-slate-200">
+                            <p class="text-sm text-slate-800" data-bind="message.content" data-mock="true">
+                                I'd be happy to help you with your web application! I can assist with architecture decisions, technology choices, best practices, code examples, and troubleshooting. What specific aspect of your project would you like to discuss first?
+                            </p>
+                            <div class="flex items-center mt-2 space-x-2">
+                                <span class="text-xs text-slate-500" data-bind="formatTime(message.created_at)" data-mock="true">2:30 PM</span>
+                                <div class="flex space-x-1">
+                                    <button class="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors">
+                                        <i class="fas fa-thumbs-up text-xs"></i>
+                                    </button>
+                                    <button class="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors">
+                                        <i class="fas fa-thumbs-down text-xs"></i>
+                                    </button>
+                                    <button class="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors">
+                                        <i class="fas fa-copy text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Follow-up -->
+                <div class="flex justify-end">
+                    <div class="flex items-end space-x-2 max-w-lg">
+                        <div class="bg-gradient-to-r from-primary to-secondary text-white rounded-2xl rounded-br-sm px-4 py-3 shadow-sm">
+                            <p class="text-sm" data-mock="true">
+                                I'm building a chat application with GraphQL subscriptions and need advice on real-time messaging architecture.
+                            </p>
+                            <div class="flex items-center justify-end mt-2 space-x-2">
+                                <span class="text-xs opacity-75" data-mock="true">2:32 PM</span>
+                                <i class="fas fa-check-double text-xs opacity-75"></i>
+                            </div>
+                        </div>
+                        <div class="h-8 w-8 bg-slate-300 rounded-full flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-user text-white text-sm"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Response with Code -->
+                <div class="flex justify-start">
+                    <div class="flex items-end space-x-2 max-w-2xl">
+                        <div class="h-8 w-8 bg-gradient-to-r from-secondary to-primary rounded-full flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-robot text-white text-sm"></i>
+                        </div>
+                        <div class="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-slate-200">
+                            <p class="text-sm text-slate-800 mb-3" data-mock="true">
+                                Excellent! GraphQL subscriptions are perfect for real-time chat. Here's a recommended architecture:
+                            </p>
+                            <div class="bg-slate-900 rounded-lg p-3 text-sm overflow-x-auto">
+                                <code class="text-green-400" data-mock="true">
+const MESSAGES_SUBSCRIPTION = gql`<br>
+&nbsp;&nbsp;subscription GetMessages($chatId: uuid!) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;messages(where: {chat_id: {_eq: $chatId}}) {<br>
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;id content role created_at user_id<br>
+&nbsp;&nbsp;&nbsp;&nbsp;}<br>
+&nbsp;&nbsp;}<br>
+`;
+                                </code>
+                            </div>
+                            <p class="text-sm text-slate-800 mt-3" data-mock="true">
+                                This ensures real-time updates with proper security through row-level security (RLS) based on user authentication.
+                            </p>
+                            <div class="flex items-center mt-2 space-x-2">
+                                <span class="text-xs text-slate-500" data-mock="true">2:33 PM</span>
+                                <div class="flex space-x-1">
+                                    <button class="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors">
+                                        <i class="fas fa-thumbs-up text-xs"></i>
+                                    </button>
+                                    <button class="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors">
+                                        <i class="fas fa-thumbs-down text-xs"></i>
+                                    </button>
+                                    <button class="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors">
+                                        <i class="fas fa-copy text-xs"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Typing Indicator -->
+                <div class="flex justify-start" data-bind="isTyping" style="display: none;">
+                    <div class="flex items-end space-x-2">
+                        <div class="h-8 w-8 bg-gradient-to-r from-secondary to-primary rounded-full flex items-center justify-center flex-shrink-0">
+                            <i class="fas fa-robot text-white text-sm"></i>
+                        </div>
+                        <div class="bg-white rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm border border-slate-200">
+                            <div class="flex space-x-1 items-center">
+                                <div class="flex space-x-1">
+                                    <div class="h-2 w-2 bg-slate-400 rounded-full animate-bounce"></div>
+                                    <div class="h-2 w-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                                    <div class="h-2 w-2 bg-slate-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                                </div>
+                                <span class="text-xs text-slate-500 ml-2">AI is thinking...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- @END_MAP )) -->
+
+            </div>
+
+            <!-- Message Input Area -->
+            <!-- @COMPONENT: MessageInput [onSendMessage: function, isLoading: boolean] -->
+            <div class="bg-white border-t border-slate-200 p-4">
+                <form class="flex items-end space-x-3" data-event="submit:handleSendMessage" data-implementation="Should insert user message and call sendMessage action">
+                    <div class="flex-1">
+                        <div class="relative">
+                            <textarea
+                                placeholder="Type your message... (Shift + Enter for new line)"
+                                rows="1"
+                                class="w-full resize-none rounded-2xl border border-slate-300 px-4 py-3 pr-20 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-colors text-sm max-h-32 overflow-y-auto"
+                                data-bind="messageInput"
+                                data-implementation="Should auto-resize and handle Shift+Enter for multiline"
+                                data-mock="true"
+                            ></textarea>
+                            
+                            <!-- Input Actions -->
+                            <div class="absolute bottom-2 right-2 flex items-center space-x-1">
+                                <button type="button" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors">
+                                    <i class="fas fa-paperclip text-sm"></i>
+                                </button>
+                                <button type="button" class="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors">
+                                    <i class="fas fa-smile text-sm"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Character Count & Hint -->
+                        <div class="flex justify-between items-center mt-2">
+                            <div class="text-xs text-slate-400">
+                                <span data-bind="messageInput.length">0</span>/1000 characters
+                            </div>
+                            <div class="text-xs text-slate-400">
+                                Press <kbd class="bg-slate-100 px-1 rounded text-xs">Enter</kbd> to send
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button type="submit" 
+                            class="h-12 w-12 bg-gradient-to-r from-primary to-secondary text-white rounded-full hover:from-primary/90 hover:to-secondary/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all transform hover:scale-105 active:scale-95 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                            data-bind="disabled: isLoading || !messageInput.trim()"
+                            data-implementation="Should be disabled when message is empty or sending">
+                        <i class="fas fa-paper-plane" data-bind="!isLoading"></i>
+                        <i class="fas fa-spinner fa-spin hidden" data-bind="isLoading"></i>
+                    </button>
+                </form>
+
+                <!-- Status Bar -->
+                <div class="flex items-center justify-between mt-3 text-xs text-slate-500">
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-1">
+                            <div class="h-2 w-2 bg-success rounded-full"></div>
+                            <span>Connected</span>
+                        </div>
+                        <div class="flex items-center space-x-1">
+                            <i class="fas fa-shield-alt text-primary"></i>
+                            <span>End-to-end secured</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-1">
+                        <i class="fas fa-zap text-warning"></i>
+                        <span>Powered by OpenRouter AI</span>
+                    </div>
+                </div>
+            </div>
+            <!-- @END_COMPONENT: MessageInput -->
+
+        </div>
+        <!-- @END_COMPONENT: ChatArea -->
+
+    </div>
+    <!-- @END_COMPONENT: ChatApp -->
+
+    <!-- Loading States and Error Handling -->
+    <!-- @COMPONENT: LoadingState [message: string] -->
+    <div id="loading-screen" class="hidden fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-2xl p-8 max-w-sm mx-4 text-center shadow-2xl">
+            <div class="h-16 w-16 bg-gradient-to-r from-primary to-secondary rounded-full flex items-center justify-center mx-auto mb-4">
+                <i class="fas fa-spinner fa-spin text-white text-xl"></i>
+            </div>
+            <h3 class="text-lg font-semibold text-slate-900 mb-2">Loading...</h3>
+            <p class="text-sm text-slate-600" data-bind="loadingMessage" data-mock="true">
+                Setting up your secure chat environment
+            </p>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: LoadingState -->
+
+    <!-- Error Toast -->
+    <!-- @COMPONENT: ErrorToast [error: string, onDismiss: function] -->
+    <div id="error-toast" class="hidden fixed top-4 right-4 bg-white border border-red-200 rounded-lg shadow-lg p-4 max-w-md z-50">
+        <div class="flex items-start space-x-3">
+            <div class="h-6 w-6 bg-error rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <i class="fas fa-exclamation-triangle text-white text-xs"></i>
+            </div>
+            <div class="flex-1">
+                <h4 class="text-sm font-medium text-slate-900">Error</h4>
+                <p class="text-sm text-slate-600 mt-1" data-bind="error.message" data-mock="true">
+                    Failed to send message. Please check your connection and try again.
+                </p>
+            </div>
+            <button class="text-slate-400 hover:text-slate-600 transition-colors" data-event="click:dismissError">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: ErrorToast -->
+
+    <!-- Mobile Navigation -->
+    <div class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 px-4 py-2 z-40" data-bind="isMobile">
+        <div class="flex items-center justify-between">
+            <button class="flex flex-col items-center space-y-1 text-primary"
+                    data-event="click:toggleSidebar">
+                <i class="fas fa-comments text-lg"></i>
+                <span class="text-xs">Chats</span>
+            </button>
+            <button class="flex flex-col items-center space-y-1 text-slate-400"
+                    data-event="click:openSearch">
+                <i class="fas fa-search text-lg"></i>
+                <span class="text-xs">Search</span>
+            </button>
+            <button class="flex flex-col items-center space-y-1 text-slate-400"
+                    data-event="click:openSettings">
+                <i class="fas fa-cog text-lg"></i>
+                <span class="text-xs">Settings</span>
+            </button>
+        </div>
+    </div>
+
+    <script>
+    (() => {
+        // TODO: Implement actual authentication with Nhost
+        // TODO: Implement GraphQL queries, mutations, and subscriptions with Apollo Client
+        // TODO: Implement real-time message updates
+        // TODO: Implement proper error handling and loading states
+        
+        // Demo functionality for mockup purposes
+        let isAuthenticated = false;
+        let currentView = 'signin';
+        
+        // Auth form switching
+        const signinForm = document.getElementById('signin-form');
+        const signupForm = document.getElementById('signup-form');
+        const authScreen = document.getElementById('auth-screen');
+        const chatApp = document.getElementById('chat-app');
+        
+        // Demo: Switch between signin and signup forms
+        document.addEventListener('click', (e) => {
+            if (e.target.closest('[data-event*="switchToSignUp"]')) {
+                signinForm.classList.add('hidden');
+                signupForm.classList.remove('hidden');
+                document.querySelector('[data-bind="authTitle"]').textContent = 'Create your account';
+            }
+            
+            if (e.target.closest('[data-event*="switchToSignIn"]')) {
+                signupForm.classList.add('hidden');
+                signinForm.classList.remove('hidden');
+                document.querySelector('[data-bind="authTitle"]').textContent = 'Sign in to AI Chat';
+            }
+            
+            // Demo: Simulate successful authentication
+            if (e.target.closest('[data-event*="handleSignIn"]') || e.target.closest('[data-event*="handleSignUp"]')) {
+                e.preventDefault();
+                setTimeout(() => {
+                    authScreen.classList.add('hidden');
+                    chatApp.classList.remove('hidden');
+                    isAuthenticated = true;
+                }, 1000);
+            }
+            
+            // Demo: Handle sign out
+            if (e.target.closest('[data-event*="handleSignOut"]')) {
+                chatApp.classList.add('hidden');
+                authScreen.classList.remove('hidden');
+                isAuthenticated = false;
+            }
+            
+            // Demo: User menu toggle
+            if (e.target.closest('[data-event*="toggleUserMenu"]')) {
+                const menu = e.target.closest('.relative').querySelector('[data-bind="userMenuOpen"]');
+                menu.classList.toggle('hidden');
+            }
+        });
+        
+        // Demo: Message input auto-resize
+        const textarea = document.querySelector('textarea[data-bind="messageInput"]');
+        if (textarea) {
+            textarea.addEventListener('input', () => {
+                textarea.style.height = 'auto';
+                textarea.style.height = Math.min(textarea.scrollHeight, 128) + 'px';
+                
+                // Update character count
+                const charCount = document.querySelector('[data-bind="messageInput.length"]');
+                if (charCount) {
+                    charCount.textContent = textarea.value.length;
+                }
+                
+                // Enable/disable send button
+                const sendButton = document.querySelector('button[data-bind*="disabled"]');
+                if (sendButton) {
+                    sendButton.disabled = !textarea.value.trim();
+                }
+            });
+            
+            // Handle Enter key
+            textarea.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    if (textarea.value.trim()) {
+                        // TODO: Implement actual message sending
+                        console.log('Sending message:', textarea.value);
+                        textarea.value = '';
+                        textarea.style.height = 'auto';
+                    }
+                }
+            });
+        }
+        
+        // Demo: Show typing indicator
+        let typingTimeout;
+        document.addEventListener('submit', (e) => {
+            if (e.target.closest('[data-event*="handleSendMessage"]')) {
+                e.preventDefault();
+                const typingIndicator = document.querySelector('[data-bind="isTyping"]');
+                if (typingIndicator) {
+                    typingIndicator.style.display = 'flex';
+                    clearTimeout(typingTimeout);
+                    typingTimeout = setTimeout(() => {
+                        typingIndicator.style.display = 'none';
+                    }, 3000);
+                }
+            }
+        });
+        
+        // Demo: Close dropdowns when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.relative')) {
+                document.querySelectorAll('[data-bind="userMenuOpen"]').forEach(menu => {
+                    menu.classList.add('hidden');
+                });
+            }
+        });
+    })();
+    </script>
+
+</body>
+</html>

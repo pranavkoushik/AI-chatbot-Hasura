@@ -1,0 +1,224 @@
+AI Chatbot with Nhost Auth, Hasura GraphQL, n8n, and OpenRouter
+1. Project Overview
+Title: AI-Powered Chatbot with Secure Authentication and Real-Time Messaging
+Purpose:
+To create a secure, real-time chatbot application with:
+
+Email sign-up/sign-in using Nhost Auth (Bolt integration).
+
+Role-based access control with Hasura GraphQL Row-Level Security (RLS).
+
+Real-time chat using GraphQL subscriptions.
+
+AI responses powered by OpenRouter through n8n workflows.
+
+Frontend fully built on GraphQL — no REST API calls.
+
+Deployed on Netlify.
+
+2. Technology Stack
+Component	Technology Used
+Frontend	React (Bolt/Vite), Apollo Client, @nhost/react, GraphQL
+Backend	Nhost (PostgreSQL + Hasura GraphQL Engine)
+Authentication	Nhost Auth (Email/Password)
+Messaging	Hasura GraphQL queries, mutations, subscriptions
+Automation & AI	n8n workflow automation
+AI Model API	OpenRouter (free AI model endpoint)
+Hosting	Netlify (Frontend), Nhost (Backend)
+Security	Hasura Row-Level Security (RLS), JWT Authentication
+Protocol	WebSocket for subscriptions
+
+3. Functional Requirements
+3.1 Authentication
+Users must sign up or sign in with email/password.
+
+All routes and features restricted to authenticated users.
+
+3.2 Chat System
+Create new chat sessions.
+
+View list of chats (only owned by the logged-in user).
+
+Send messages and get AI responses.
+
+Real-time updates via subscriptions.
+
+3.3 AI Integration
+User messages trigger a Hasura Action.
+
+Action calls n8n webhook.
+
+n8n validates chat ownership.
+
+n8n calls OpenRouter API for AI response.
+
+AI reply stored in database.
+
+Reply streamed to user via subscription.
+
+4. Non-Functional Requirements
+Security: No unauthenticated access, JWT-based session validation, no REST calls from frontend to AI API.
+
+Performance: AI response in under 3 seconds for short messages.
+
+Scalability: Backend should support 100+ concurrent users.
+
+Maintainability: Clear modular separation between frontend, Hasura backend, and n8n automation.
+
+5. Database Schema
+Tables
+chats
+Column	Type	Notes
+id	uuid (PK)	Generated automatically
+user_id	uuid	Owner (from auth.users.id)
+title	text	Default 'New Chat'
+created_at	timestamptz	Default now()
+
+messages
+Column	Type	Notes
+id	uuid (PK)	Generated automatically
+chat_id	uuid (FK)	References chats(id)
+user_id	uuid	Owner of message
+role	text	user or assistant
+content	text	Message text
+created_at	timestamptz	Default now()
+
+6. Role-Based Access Control (RLS)
+Role: user
+
+chats
+
+Select: { user_id: { _eq: "X-Hasura-User-Id" } }
+
+Insert: Preset user_id = X-Hasura-User-Id
+
+Update/Delete: Same row-check as select.
+
+messages
+
+Select: { user_id: { _eq: "X-Hasura-User-Id" } }
+
+Insert: Preset user_id = X-Hasura-User-Id
+
+No update; delete restricted to owner.
+
+7. Hasura Action Specification
+Action Name: sendMessage
+GraphQL SDL:
+
+graphql
+Copy
+Edit
+type Mutation {
+  sendMessage(chat_id: uuid!, content: String!): SendMessageOutput!
+}
+
+type SendMessageOutput {
+  assistant_message_id: uuid!
+  assistant_content: String!
+}
+Handler URL: n8n Webhook URL (POST).
+Forwarded Headers: Authorization, X-Hasura-User-Id, X-Hasura-Role.
+Permissions: Role user allowed.
+
+8. n8n Workflow
+Steps
+Webhook Trigger (Receives chat_id, content, user headers)
+
+GraphQL Query (Hasura, Admin Secret) → Verify chat_id ownership.
+
+GraphQL Query (Get last N messages for context).
+
+HTTP Request → OpenRouter API with conversation context.
+
+GraphQL Mutation (Insert assistant message in DB).
+
+Webhook Response → Return assistant message to Hasura Action.
+
+9. Frontend Application Flow
+9.1 Authentication
+@nhost/react manages sign-in/sign-up UI.
+
+Token stored by Nhost automatically.
+
+Apollo Client uses Nhost token for all GraphQL requests.
+
+9.2 Chat UI
+ChatList (query: list chats).
+
+ChatView (subscription: list messages in a chat).
+
+MessageInput: On send:
+
+Insert user message into DB.
+
+Call sendMessage Action (mutation).
+
+Subscription receives assistant reply.
+
+10. Workflow Diagram
+sql
+Copy
+Edit
+[User] 
+  ↓ Sign in
+[Nhost Auth] -- returns JWT --> [Frontend Apollo Client]
+  ↓ Query
+[Hasura GraphQL] ← (JWT validation) → [Postgres DB]
+
+When user sends message:
+1. Frontend → insert user message (mutation) → Hasura → DB
+2. Frontend → call `sendMessage` Action → Hasura → n8n webhook
+3. n8n → validate ownership → query context → call OpenRouter
+4. OpenRouter → return AI reply → n8n inserts assistant message into DB
+5. Subscription → Frontend updates in real-time with assistant message
+11. Security Rules
+All DB operations scoped by X-Hasura-User-Id.
+
+No admin secret in frontend code.
+
+All AI API calls via n8n (server-side).
+
+JWT tokens stored in Nhost-managed secure storage.
+
+12. Deployment Steps
+Backend (Nhost/Hasura)
+Create Nhost project, enable Email/Password auth.
+
+Create chats and messages tables.
+
+Set RLS rules for user role.
+
+Create sendMessage Action and link to n8n webhook.
+
+Add Netlify URL to Hasura CORS list.
+
+n8n
+Deploy n8n (self-host or cloud).
+
+Create /sendMessage webhook workflow.
+
+Store Hasura Admin Secret & OpenRouter API key in credentials.
+
+Deploy workflow and copy webhook URL to Hasura Action.
+
+Frontend (Netlify)
+Build React/Apollo/Nhost frontend.
+
+Configure .env with Nhost subdomain, region, GraphQL URL, WS URL.
+
+Push to GitHub, connect Netlify.
+
+Add env vars in Netlify settings.
+
+Deploy.
+
+13. Testing Plan
+Auth: Try accessing without login → should fail.
+
+Chat Creation: Only logged-in user can create/view their chats.
+
+Message Flow: Send user message → AI reply appears in under 3s.
+
+Security: Try to query another user’s chat_id → should fail.
+
